@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI's Hidden Thirst — Real-Time Water Usage Tracker</title>
+<style>
+  :root {
+    --bg: #060d1a;
+    --surface: rgba(255,255,255,0.04);
+    --surface2: rgba(0,212,255,0.07);
+    --border: rgba(0,212,255,0.15);
+    --blue: #00d4ff;
+    --aqua: #00ffcc;
+    --blue2: #0088ff;
+    --red: #ff4466;
+    --text: #e8f4ff;
+    --muted: #6b8fa8;
+    --glow: 0 0 40px rgba(0,212,255,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* ── CANVAS BACKGROUND ── */
+  #bg-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  .page { position: relative; z-index: 1; }
+
+  /* ── HEADER ── */
+  header {
+    padding: 28px 40px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: rgba(6,13,26,0.8);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .logo-drop {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--blue), var(--aqua));
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    animation: dropPulse 3s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  @keyframes dropPulse {
+    0%,100% { transform: rotate(-45deg) scale(1); box-shadow: 0 0 0 0 rgba(0,212,255,0.4); }
+    50% { transform: rotate(-45deg) scale(1.1); box-shadow: 0 0 0 12px rgba(0,212,255,0); }
+  }
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(0,212,255,0.1);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    color: var(--blue);
+    font-weight: 600;
+  }
+  .live-dot {
+    width: 8px; height: 8px;
+    background: #00ff88;
+    border-radius: 50%;
+    animation: blink 1.2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  /* ── HERO ── */
+  .hero {
+    text-align: center;
+    padding: 70px 20px 50px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  .hero-eyebrow {
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: 18px;
+    font-weight: 600;
+  }
+  .hero h1 {
+    font-size: clamp(32px, 5vw, 58px);
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1.08;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #fff 30%, var(--blue) 70%, var(--aqua));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 580px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  /* ── YEAR COUNTER (MAIN) ── */
+  .year-counter-wrap {
+    max-width: 900px;
+    margin: 0 auto 60px;
+    padding: 0 20px;
+  }
+  .year-counter-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 50px 40px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--glow);
+  }
+  .year-counter-card::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--blue), var(--aqua), var(--blue2));
+    background-size: 200% 100%;
+    animation: shimmer 3s linear infinite;
+  }
+  @keyframes shimmer { 0%{background-position:0%} 100%{background-position:200%} }
+
+  .wave-bg {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 80px;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .wave {
+    position: absolute;
+    bottom: 0;
+    width: 200%;
+    height: 80px;
+    opacity: 0.06;
+  }
+  .wave1 { animation: wave1 8s linear infinite; }
+  .wave2 { animation: wave2 12s linear infinite; opacity: 0.04; }
+  @keyframes wave1 { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+  @keyframes wave2 { 0%{transform:translateX(-50%)} 100%{transform:translateX(0)} }
+
+  .counter-label {
+    font-size: 13px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    font-weight: 600;
+  }
+  .main-number {
+    font-size: clamp(42px, 8vw, 88px);
+    font-weight: 900;
+    letter-spacing: -3px;
+    color: var(--blue);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    text-shadow: 0 0 60px rgba(0,212,255,0.4);
+    margin-bottom: 8px;
+    min-height: 1.1em;
+    display: block;
+  }
+  .counter-unit {
+    font-size: 20px;
+    color: var(--muted);
+    margin-bottom: 28px;
+    font-weight: 500;
+  }
+  .counter-rate {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,212,255,0.08);
+    border: 1px solid var(--border);
+    padding: 8px 18px;
+    border-radius: 30px;
+    font-size: 14px;
+    color: var(--blue);
+  }
+
+  /* ── TRIPLE STATS ── */
+  .triple-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    max-width: 900px;
+    margin: 0 auto 60px;
+    padding: 0 20px;
+  }
+  @media(max-width:640px) { .triple-grid { grid-template-columns: 1fr; } }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 28px 24px;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .stat-card:hover { transform: translateY(-3px); box-shadow: var(--glow); }
+  .stat-icon { font-size: 32px; margin-bottom: 12px; display: block; }
+  .stat-value {
+    font-size: clamp(24px, 4vw, 36px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--aqua);
+    font-variant-numeric: tabular-nums;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .stat-label { font-size: 13px; color: var(--muted); line-height: 1.4; }
+
+  /* ── SECTION TITLE ── */
+  .section-title {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: 24px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── MAIN GRID ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto 60px;
+    padding: 0 20px;
+  }
+  @media(max-width:860px) { .main-grid { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 30px;
+  }
+  .panel-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #c8e8f8;
+  }
+  .panel-title .icon { font-size: 20px; }
+
+  /* ── COMPANY BARS ── */
+  .company-bar { margin-bottom: 18px; }
+  .company-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 7px;
+    font-size: 14px;
+  }
+  .company-name { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .company-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .company-val { color: var(--muted); font-size: 13px; }
+  .bar-track {
+    height: 8px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1.5s cubic-bezier(0.4,0,0.2,1);
+    width: 0;
+  }
+
+  /* ── QUERY VISUAL ── */
+  .query-section {
+    max-width: 1200px;
+    margin: 0 auto 60px;
+    padding: 0 20px;
+  }
+  .query-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px;
+  }
+  .query-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: center;
+  }
+  @media(max-width:640px) { .query-split { grid-template-columns: 1fr; } }
+
+  .query-number {
+    font-size: clamp(48px, 8vw, 80px);
+    font-weight: 900;
+    letter-spacing: -3px;
+    color: var(--blue);
+    line-height: 1;
+    text-shadow: 0 0 40px rgba(0,212,255,0.4);
+  }
+  .query-unit {
+    font-size: 22px;
+    color: var(--aqua);
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .query-desc { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* ── BOTTLE GRID ── */
+  .bottle-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .bottle {
+    font-size: 22px;
+    animation: dropIn 0.4s ease both;
+    filter: saturate(1.5);
+  }
+  @keyframes dropIn { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:none} }
+
+  /* ── EQUIVALENTS ── */
+  .equiv-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    max-width: 1200px;
+    margin: 0 auto 60px;
+    padding: 0 20px;
+  }
+  .equiv-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 24px;
+    text-align: center;
+    transition: transform 0.2s;
+  }
+  .equiv-card:hover { transform: translateY(-2px); box-shadow: var(--glow); }
+  .equiv-icon { font-size: 40px; margin-bottom: 12px; }
+  .equiv-num {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--aqua);
+    display: block;
+    letter-spacing: -1px;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 4px;
+  }
+  .equiv-label { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  /* ── TIMELINE ── */
+  .timeline-section {
+    max-width: 1200px;
+    margin: 0 auto 60px;
+    padding: 0 20px;
+  }
+  .timeline-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px;
+  }
+  .chart-area {
+    height: 200px;
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+  }
+  .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .chart-bar-wrap {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+  }
+  .chart-bar {
+    width: 100%;
+    border-radius: 6px 6px 0 0;
+    transition: height 1.5s cubic-bezier(0.4,0,0.2,1);
+    height: 0;
+    position: relative;
+    min-height: 4px;
+  }
+  .chart-bar.projected {
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(0,212,255,0.3) 0px,
+      rgba(0,212,255,0.3) 4px,
+      transparent 4px,
+      transparent 8px
+    );
+    border: 1px dashed rgba(0,212,255,0.4);
+  }
+  .chart-bar.actual { background: linear-gradient(0deg, var(--blue2), var(--blue)); }
+  .chart-bar.current { background: linear-gradient(0deg, var(--aqua), var(--blue)); box-shadow: 0 0 20px rgba(0,212,255,0.3); }
+  .chart-year { font-size: 11px; color: var(--muted); }
+  .chart-val { font-size: 11px; color: var(--blue); font-weight: 600; }
+
+  /* ── DATA CENTERS ── */
+  .dc-section {
+    max-width: 1200px;
+    margin: 0 auto 60px;
+    padding: 0 20px;
+  }
+  .dc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 4px;
+  }
+  .dc-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 16px;
+    transition: transform 0.2s, background 0.2s;
+  }
+  .dc-card:hover { transform: scale(1.02); background: rgba(0,212,255,0.1); }
+  .dc-logo { font-size: 20px; margin-bottom: 8px; }
+  .dc-name { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+  .dc-count { font-size: 22px; font-weight: 800; color: var(--blue); letter-spacing: -0.5px; }
+  .dc-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .dc-total {
+    border: 1px solid rgba(0,212,255,0.3);
+    background: rgba(0,212,255,0.07);
+    border-radius: 14px;
+    padding: 18px 16px;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 36px 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+  }
+  @media(max-width:640px) { footer { grid-template-columns: 1fr; padding: 30px 20px; } }
+  .footer-col h4 { font-size: 13px; color: var(--muted); margin-bottom: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+  .footer-col p { font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .footer-col a { color: var(--blue); text-decoration: none; }
+  .footer-col a:hover { text-decoration: underline; }
+  .footer-col ul { list-style: none; }
+  .footer-col ul li { margin-bottom: 6px; font-size: 13px; }
+  .footer-col ul li::before { content: '→ '; color: var(--blue); }
+
+  /* ── REFRESH BUTTON ── */
+  .refresh-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--blue);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .refresh-btn:hover { background: rgba(0,212,255,0.1); border-color: var(--blue); }
+  .refresh-icon { transition: transform 0.5s; }
+  .refresh-btn.spinning .refresh-icon { transform: rotate(360deg); }
+
+  /* ── MISC ── */
+  .separator { height: 1px; background: var(--border); max-width: 1200px; margin: 0 auto 60px; }
+  .tag {
+    display: inline-block;
+    background: rgba(255,68,102,0.12);
+    border: 1px solid rgba(255,68,102,0.25);
+    color: #ff8899;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .tag.green {
+    background: rgba(0,255,136,0.08);
+    border-color: rgba(0,255,136,0.2);
+    color: #00ff88;
+  }
+  .tooltip {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    line-height: 1.5;
+  }
+  .tooltip::before { content: 'ⓘ'; flex-shrink: 0; color: var(--blue); }
+
+  .two-col-note {
+    grid-column: 1 / -1;
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    padding-top: 8px;
+  }
+
+  /* ── DONUT ── */
+  .donut-wrap {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+  @media(max-width:400px) { .donut-wrap { flex-direction: column; } }
+  canvas.donut { flex-shrink: 0; }
+  .donut-legend { flex: 1; }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 13px;
+  }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .legend-label { color: var(--muted); }
+  .legend-pct { margin-left: auto; color: var(--text); font-weight: 700; }
+
+  /* ── PULSE RINGS ── */
+  .pulse-ring {
+    display: inline-block;
+    width: 12px; height: 12px;
+    position: relative;
+  }
+  .pulse-ring::before, .pulse-ring::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--blue);
+    animation: ring 2s ease-out infinite;
+  }
+  .pulse-ring::after { animation-delay: 1s; }
+  @keyframes ring { 0%{transform:scale(1);opacity:0.8} 100%{transform:scale(3);opacity:0} }
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+
+<div class="page">
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-drop"></div>
+    AI's Hidden Thirst
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button class="refresh-btn" id="refreshBtn" onclick="triggerRefresh()">
+      <span class="refresh-icon" id="refreshIcon">↻</span>
+      Refresh Data
+    </button>
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      Live Counter
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">Global AI Infrastructure • Water Consumption Tracker</div>
+  <h1>How Much Water Is<br>AI Using Right Now?</h1>
+  <p>Every AI query, every model training run, every GPU cluster — all cooled by water. This tracker estimates global AI data center water consumption in real time, based on published research and industry reports.</p>
+</div>
+
+<!-- YEAR COUNTER -->
+<div class="year-counter-wrap">
+  <div class="year-counter-card">
+    <div class="wave-bg">
+      <svg class="wave wave1" viewBox="0 0 1440 80" preserveAspectRatio="none" fill="rgba(0,212,255,1)">
+        <path d="M0,40 C180,80 360,0 540,40 C720,80 900,0 1080,40 C1260,80 1440,20 1440,40 L1440,80 L0,80 Z"/>
+      </svg>
+      <svg class="wave wave2" viewBox="0 0 1440 80" preserveAspectRatio="none" fill="rgba(0,255,204,1)">
+        <path d="M0,50 C200,10 400,70 600,50 C800,30 1000,70 1200,50 C1300,40 1380,60 1440,50 L1440,80 L0,80 Z"/>
+      </svg>
+    </div>
+    <div class="counter-label">Estimated liters consumed by AI data centers in <span id="year-label">2026</span></div>
+    <span class="main-number" id="year-counter">0</span>
+    <div class="counter-unit">liters of water</div>
+    <div class="counter-rate">
+      <div class="pulse-ring"></div>
+      <span id="rate-display">~15,855 liters per second</span>
+    </div>
+  </div>
+</div>
+
+<!-- TRIPLE STATS -->
+<div class="triple-grid">
+  <div class="stat-card">
+    <span class="stat-icon">📅</span>
+    <span class="stat-value" id="today-counter">0</span>
+    <div class="stat-label">Liters used<br><strong>today</strong></div>
+  </div>
+  <div class="stat-card">
+    <span class="stat-icon">⏱️</span>
+    <span class="stat-value" id="per-second">15,855</span>
+    <div class="stat-label">Liters per<br><strong>second</strong></div>
+  </div>
+  <div class="stat-card">
+    <span class="stat-icon">🌍</span>
+    <span class="stat-value" id="dc-count">~10,978</span>
+    <div class="stat-label">Data centers<br><strong>with AI workloads</strong></div>
+  </div>
+</div>
+
+<div class="separator"></div>
+
+<!-- PER QUERY SECTION -->
+<div class="query-section">
+  <div class="section-title">Per-Query Footprint</div>
+  <div class="query-card">
+    <div class="query-split">
+      <div>
+        <div style="margin-bottom:4px;"><span class="tag">Research estimate</span></div>
+        <div class="query-number">500</div>
+        <span class="query-unit">ml per ChatGPT response</span>
+        <p class="query-desc">UC Riverside / UT Arlington study (2023) found GPT-3 used ~500ml per response when processing at US data centers. Equivalent to a standard water bottle per 20–50 queries. Newer models have improved efficiency but exact figures remain proprietary.</p>
+        <div class="tooltip">Sam Altman disputed this, citing ~0.32ml per query for newer models. The truth depends on model version, data center location, and cooling method.</div>
+      </div>
+      <div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">One bottle of water = ~20 ChatGPT queries:</div>
+        <div class="bottle-grid" id="bottle-grid"></div>
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border);">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:10px;">Queries asked globally today (est.):</div>
+          <div style="font-size:32px;font-weight:800;color:var(--aqua);font-variant-numeric:tabular-nums;" id="queries-today">Loading…</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px;">Based on ~100M+ daily active users across AI services</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="separator"></div>
+
+<!-- MAIN GRID: Company breakdown + Donut -->
+<div class="main-grid">
+  <div class="panel">
+    <div class="panel-title"><span class="icon">🏢</span> Company Water Usage (Annual, Billions L)</div>
+    <div id="company-bars"></div>
+    <p class="tooltip" style="margin-top:16px;">Figures represent total reported data center water usage (not AI-specific). AI workloads account for a growing share estimated at 20–40% of total consumption.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title"><span class="icon">🔵</span> Water Usage Breakdown</div>
+    <div class="donut-wrap" style="margin-top:10px;">
+      <canvas class="donut" id="donutCanvas" width="160" height="160"></canvas>
+      <div class="donut-legend" id="donutLegend"></div>
+    </div>
+    <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px;">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">60% indirect (power generation) + 40% direct cooling</div>
+      <div style="font-size:13px;color:var(--muted);">Average WUE: <strong style="color:var(--blue)">1.9 L/kWh</strong> — Water Usage Effectiveness measures how efficiently data centers use water per unit of energy consumed.</div>
+    </div>
+  </div>
+</div>
+
+<!-- GROWTH TIMELINE -->
+<div class="timeline-section">
+  <div class="section-title">Annual AI Water Consumption Growth (Billion Litres)</div>
+  <div class="timeline-card">
+    <div class="chart-area" id="chart-area"></div>
+  </div>
+</div>
+
+<div class="separator"></div>
+
+<!-- EQUIVALENTS -->
+<div class="equiv-grid">
+  <div class="section-title" style="grid-column:1/-1">Today's Consumption Equivalents</div>
+  <div class="equiv-card">
+    <div class="equiv-icon">🏊</div>
+    <span class="equiv-num" id="eq-pools">0</span>
+    <div class="equiv-label">Olympic swimming pools<br>(2.5M litres each)</div>
+  </div>
+  <div class="equiv-card">
+    <div class="equiv-icon">💧</div>
+    <span class="equiv-num" id="eq-bottles">0</span>
+    <div class="equiv-label">500ml water bottles</div>
+  </div>
+  <div class="equiv-card">
+    <div class="equiv-icon">🚿</div>
+    <span class="equiv-num" id="eq-showers">0</span>
+    <div class="equiv-label">8-minute showers<br>(60 litres each)</div>
+  </div>
+  <div class="equiv-card">
+    <div class="equiv-icon">👥</div>
+    <span class="equiv-num" id="eq-people">0</span>
+    <div class="equiv-label">People's daily water supply<br>(3L drinking water/day)</div>
+  </div>
+</div>
+
+<div class="separator"></div>
+
+<!-- DATA CENTERS -->
+<div class="dc-section">
+  <div class="section-title">Global AI Data Center Landscape</div>
+  <div class="dc-grid" id="dc-grid"></div>
+  <p class="tooltip" style="margin-top:16px;">Sources: Synergy Research Group (2025), company reports. Counts include hyperscale facilities; thousands more edge/colocation sites run AI workloads. Pipeline figures show facilities under construction or planned.</p>
+</div>
+
+<!-- FOOTER / METHODOLOGY -->
+<footer>
+  <div class="footer-col">
+    <h4>Methodology</h4>
+    <p>Annual AI water footprint estimated at <strong>500 billion litres</strong> (midpoint of 312.5–764.6Bn range from published research). Counter starts from Jan 1 of current year. Rate: ~15,855 litres/second.<br><br>
+    Data refreshes automatically every 60 seconds. Figures are estimates based on publicly available research and should be treated as indicative, not exact.</p>
+  </div>
+  <div class="footer-col">
+    <h4>Key Sources</h4>
+    <ul>
+      <li><a href="https://news.ucr.edu/articles/2023/04/28/ai-programs-consume-large-volumes-scarce-water" target="_blank">UC Riverside — AI Water Study (2023)</a></li>
+      <li><a href="https://www.brookings.edu/articles/ai-data-centers-and-water/" target="_blank">Brookings — AI, Data Centers & Water</a></li>
+      <li><a href="https://www.eesi.org/articles/view/data-centers-and-water-consumption" target="_blank">EESI — Data Centers & Water Consumption</a></li>
+      <li><a href="https://undark.org/2025/12/16/ai-data-centers-water/" target="_blank">Undark — How Much Water Do AI Data Centers Use?</a></li>
+      <li><a href="https://www.aitooldiscovery.com/ai-infra/how-much-water-does-ai-use" target="_blank">AI Tool Discovery — Real Numbers for 2026</a></li>
+      <li>Morgan Stanley Report — 1,068Bn L projection by 2028</li>
+    </ul>
+  </div>
+</footer>
+
+</div><!-- end .page -->
+
+<script>
+// ════════════════════════════════════
+//  CORE DATA & CALCULATIONS
+// ════════════════════════════════════
+const DATA = {
+  annualLiters: 500_000_000_000,     // 500 billion litres (2025 midpoint estimate)
+  get litersPerSecond() { return this.annualLiters / (365.25 * 86400); },
+  get litersPerDay()    { return this.litersPerSecond * 86400; },
+  yearStart: new Date(new Date().getFullYear(), 0, 1),
+
+  companies: [
+    { name: 'Amazon (AWS)', color: '#ff9900', billionLiters: 14.2, pct: 34 },
+    { name: 'Microsoft',    color: '#00adef', billionLiters: 10.6, pct: 25 },
+    { name: 'Google',       color: '#34a853', billionLiters: 8.9,  pct: 21 },
+    { name: 'Meta',         color: '#1877f2', billionLiters: 3.7,  pct: 9  },
+    { name: 'Others',       color: '#8b5cf6', billionLiters: 4.6,  pct: 11 },
+  ],
+
+  dataCenters: [
+    { name: 'Amazon AWS',  emoji: '🟠', count: '241+', sub: 'Known locations' },
+    { name: 'Microsoft',   emoji: '🔵', count: '300+', sub: 'Global regions' },
+    { name: 'Google',      emoji: '🟢', count: '40+',  sub: 'Cloud regions' },
+    { name: 'Meta',        emoji: '🟣', count: '30+',  sub: 'Data centers' },
+    { name: 'Hyperscale',  emoji: '⚡', count: '1,297', sub: 'Worldwide (Synergy)' },
+    { name: 'In Pipeline', emoji: '🏗️', count: '770+', sub: 'Under construction' },
+    { name: 'AI Workloads',emoji: '🤖', count: '~10K', sub: 'All facilities' },
+  ],
+
+  timeline: [
+    { year: '2019', value: 40,   projected: false },
+    { year: '2020', value: 65,   projected: false },
+    { year: '2021', value: 100,  projected: false },
+    { year: '2022', value: 160,  projected: false },
+    { year: '2023', value: 260,  projected: false },
+    { year: '2024', value: 380,  projected: false },
+    { year: '2025', value: 500,  projected: false, current: true },
+    { year: '2026', value: 650,  projected: true  },
+    { year: '2027', value: 840,  projected: true  },
+    { year: '2028', value: 1068, projected: true  },
+  ],
+};
+
+// ════════════════════════════════════
+//  PARTICLE BACKGROUND
+// ════════════════════════════════════
+(function initParticles() {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  let W, H;
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function makeParticle() {
+    return {
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: Math.random() * 1.5 + 0.3,
+      vx: (Math.random() - 0.5) * 0.2,
+      vy: -Math.random() * 0.4 - 0.1,
+      alpha: Math.random() * 0.5 + 0.1,
+    };
+  }
+
+  for (let i = 0; i < 120; i++) particles.push(makeParticle());
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    particles.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(0, 180, 255, ${p.alpha})`;
+      ctx.fill();
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.y < -10) { Object.assign(p, makeParticle(), { y: H + 10 }); }
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ════════════════════════════════════
+//  COUNTER LOGIC
+// ════════════════════════════════════
+function getLitersThisYear() {
+  const elapsed = (Date.now() - DATA.yearStart.getTime()) / 1000;
+  return DATA.litersPerSecond * elapsed;
+}
+
+function getLitersToday() {
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const elapsed = (Date.now() - midnight.getTime()) / 1000;
+  return DATA.litersPerSecond * elapsed;
+}
+
+function formatBig(n) {
+  if (n >= 1e12) return (n / 1e12).toFixed(3) + ' trillion';
+  if (n >= 1e9)  return (n / 1e9).toFixed(3) + ' billion';
+  if (n >= 1e6)  return (n / 1e6).toFixed(2) + ' million';
+  return Math.round(n).toLocaleString();
+}
+
+function formatNumber(n) {
+  return Math.round(n).toLocaleString();
+}
+
+function formatCompact(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return Math.round(n).toString();
+}
+
+let prevYear = 0, prevToday = 0;
+
+function updateCounters() {
+  const yearVal  = getLitersThisYear();
+  const todayVal = getLitersToday();
+
+  document.getElementById('year-counter').textContent  = formatNumber(yearVal);
+  document.getElementById('today-counter').textContent = formatCompact(todayVal);
+  document.getElementById('per-second').textContent    = formatNumber(DATA.litersPerSecond);
+
+  // Equivalents (based on today)
+  document.getElementById('eq-pools').textContent   = formatCompact(todayVal / 2_500_000);
+  document.getElementById('eq-bottles').textContent = formatCompact(todayVal / 0.5);
+  document.getElementById('eq-showers').textContent = formatCompact(todayVal / 60);
+  document.getElementById('eq-people').textContent  = formatCompact(todayVal / 3);
+
+  // Queries today (assume ~200M queries/day across all AI services)
+  const queriesPerSecond = 200_000_000 / 86400;
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const secToday = (Date.now() - midnight.getTime()) / 1000;
+  document.getElementById('queries-today').textContent = formatNumber(queriesPerSecond * secToday);
+
+  prevYear  = yearVal;
+  prevToday = todayVal;
+}
+
+// ════════════════════════════════════
+//  COMPANY BARS
+// ════════════════════════════════════
+function initCompanyBars() {
+  const container = document.getElementById('company-bars');
+  const maxVal = Math.max(...DATA.companies.map(c => c.billionLiters));
+  DATA.companies.forEach(c => {
+    const pct = (c.billionLiters / maxVal) * 100;
+    container.innerHTML += `
+      <div class="company-bar">
+        <div class="company-row">
+          <span class="company-name">
+            <span class="company-dot" style="background:${c.color}"></span>
+            ${c.name}
+          </span>
+          <span class="company-val">${c.billionLiters}B L / yr</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" data-pct="${pct}" style="background:${c.color}"></div>
+        </div>
+      </div>`;
+  });
+  setTimeout(() => {
+    document.querySelectorAll('.bar-fill').forEach(el => {
+      el.style.width = el.dataset.pct + '%';
+    });
+  }, 400);
+}
+
+// ════════════════════════════════════
+//  DONUT CHART
+// ════════════════════════════════════
+function drawDonut() {
+  const canvas = document.getElementById('donutCanvas');
+  const ctx = canvas.getContext('2d');
+  const segments = [
+    { label: 'Amazon AWS',  value: 34, color: '#ff9900' },
+    { label: 'Microsoft',   value: 25, color: '#00adef' },
+    { label: 'Google',      value: 21, color: '#34a853' },
+    { label: 'Meta',        value: 9,  color: '#1877f2' },
+    { label: 'Others',      value: 11, color: '#8b5cf6' },
+  ];
+  const cx = 80, cy = 80, r = 65, ir = 42;
+  let angle = -Math.PI / 2;
+
+  segments.forEach(s => {
+    const arc = (s.value / 100) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, angle, angle + arc);
+    ctx.closePath();
+    ctx.fillStyle = s.color;
+    ctx.fill();
+
+    // inner ring gap
+    ctx.beginPath();
+    ctx.arc(cx, cy, ir, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(6,13,26,0.95)';
+    ctx.fill();
+
+    angle += arc;
+  });
+
+  // Center text
+  ctx.fillStyle = '#e8f4ff';
+  ctx.font = 'bold 16px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('2025', cx, cy - 4);
+  ctx.fillStyle = '#6b8fa8';
+  ctx.font = '11px system-ui';
+  ctx.fillText('estimate', cx, cy + 14);
+
+  // Legend
+  const legend = document.getElementById('donutLegend');
+  segments.forEach(s => {
+    legend.innerHTML += `
+      <div class="legend-item">
+        <div class="legend-dot" style="background:${s.color}"></div>
+        <span class="legend-label">${s.label}</span>
+        <span class="legend-pct">${s.value}%</span>
+      </div>`;
+  });
+}
+
+// ════════════════════════════════════
+//  TIMELINE CHART
+// ════════════════════════════════════
+function initTimeline() {
+  const area = document.getElementById('chart-area');
+  const maxVal = 1068;
+  DATA.timeline.forEach(d => {
+    const h = Math.max(8, (d.value / maxVal) * 160);
+    const cls = d.current ? 'current' : d.projected ? 'projected' : 'actual';
+    area.innerHTML += `
+      <div class="chart-col">
+        <div class="chart-val">${d.value < 1000 ? d.value : '1,068'}</div>
+        <div class="chart-bar-wrap">
+          <div class="chart-bar ${cls}" data-h="${h}"></div>
+        </div>
+        <div class="chart-year">${d.year}${d.projected ? '*' : ''}</div>
+      </div>`;
+  });
+  setTimeout(() => {
+    document.querySelectorAll('.chart-bar').forEach(el => {
+      el.style.height = el.dataset.h + 'px';
+    });
+  }, 600);
+}
+
+// ════════════════════════════════════
+//  DATA CENTERS GRID
+// ════════════════════════════════════
+function initDCGrid() {
+  const grid = document.getElementById('dc-grid');
+  DATA.dataCenters.forEach(dc => {
+    grid.innerHTML += `
+      <div class="dc-card">
+        <div class="dc-logo">${dc.emoji}</div>
+        <div class="dc-name">${dc.name}</div>
+        <div class="dc-count">${dc.count}</div>
+        <div class="dc-sub">${dc.sub}</div>
+      </div>`;
+  });
+}
+
+// ════════════════════════════════════
+//  BOTTLE GRID
+// ════════════════════════════════════
+function initBottleGrid() {
+  const grid = document.getElementById('bottle-grid');
+  for (let i = 0; i < 20; i++) {
+    const bottle = document.createElement('span');
+    bottle.className = 'bottle';
+    bottle.textContent = '💧';
+    bottle.style.animationDelay = (i * 40) + 'ms';
+    grid.appendChild(bottle);
+  }
+}
+
+// ════════════════════════════════════
+//  YEAR LABEL
+// ════════════════════════════════════
+document.getElementById('year-label').textContent = new Date().getFullYear();
+
+// ════════════════════════════════════
+//  REFRESH BUTTON
+// ════════════════════════════════════
+let lastRefresh = Date.now();
+function triggerRefresh() {
+  const btn = document.getElementById('refreshBtn');
+  const icon = document.getElementById('refreshIcon');
+  btn.classList.add('spinning');
+  updateCounters();
+  setTimeout(() => btn.classList.remove('spinning'), 600);
+  lastRefresh = Date.now();
+}
+
+// ════════════════════════════════════
+//  INIT
+// ════════════════════════════════════
+initCompanyBars();
+drawDonut();
+initTimeline();
+initDCGrid();
+initBottleGrid();
+updateCounters();
+
+// Tick every 250ms for smooth counter
+setInterval(updateCounters, 250);
+
+// Auto-refresh once per day (counters already tick live via the 250ms interval above)
+setInterval(() => {
+  triggerRefresh();
+}, 86_400_000);
+
+// Rate display
+document.getElementById('rate-display').textContent =
+  `~${formatNumber(DATA.litersPerSecond)} litres per second`;
+</script>
+</body>
+</html>
