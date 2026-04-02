@@ -673,9 +673,9 @@
     <div class="query-split">
       <div>
         <div style="margin-bottom:4px;"><span class="tag">Research estimate</span></div>
-        <div class="query-number">500</div>
-        <span class="query-unit">ml per ChatGPT response</span>
-        <p class="query-desc">UC Riverside / UT Arlington study (2023) found GPT-3 used ~500ml per response when processing at US data centers. Equivalent to a standard water bottle per 20–50 queries. Newer models have improved efficiency but exact figures remain proprietary.</p>
+        <div class="query-number">10–50</div>
+        <span class="query-unit">queries per 500ml bottle</span>
+        <p class="query-desc">UC Riverside / UT Arlington study (2023) found GPT-3 consumed roughly 500ml of water per 10–50 queries processed at US data centers. Equivalent to one standard water bottle per session. Newer models have improved efficiency but exact figures remain proprietary.</p>
         <div class="tooltip">Sam Altman disputed this, citing ~0.32ml per query for newer models. The truth depends on model version, data center location, and cooling method.</div>
       </div>
       <div>
@@ -699,6 +699,7 @@
     <div class="panel-title"><span class="icon">🏢</span> Company Water Usage (Annual, Billions L)</div>
     <div id="company-bars"></div>
     <p class="tooltip" style="margin-top:16px;">Figures represent total reported data center water usage (not AI-specific). AI workloads account for a growing share estimated at 20–40% of total consumption.</p>
+    <p class="tooltip" style="margin-top:8px;">These figures reflect <strong>direct</strong> on-site water use (cooling towers etc.). The 500B litre annual estimate used in this tracker includes <strong>indirect</strong> consumption — water used by power plants to generate the electricity powering these data centers — which accounts for ~60% of the total AI water footprint.</p>
   </div>
 
   <div class="panel">
@@ -786,9 +787,8 @@
 // ════════════════════════════════════
 const DATA = {
   annualLiters: 500_000_000_000,     // 500 billion litres (2025 midpoint estimate)
-  get litersPerSecond() { return this.annualLiters / (365.25 * 86400); },
+  get litersPerSecond() { return this.annualLiters / (365 * 86400); },
   get litersPerDay()    { return this.litersPerSecond * 86400; },
-  yearStart: new Date(new Date().getFullYear(), 0, 1),
 
   companies: [
     { name: 'Amazon (AWS)', color: '#ff9900', billionLiters: 14.2, pct: 34 },
@@ -871,7 +871,9 @@ const DATA = {
 //  COUNTER LOGIC
 // ════════════════════════════════════
 function getLitersThisYear() {
-  const elapsed = (Date.now() - DATA.yearStart.getTime()) / 1000;
+  const now = new Date();
+  const yearStart = new Date(now.getFullYear(), 0, 1).getTime();
+  const elapsed = (Date.now() - yearStart) / 1000;
   return DATA.litersPerSecond * elapsed;
 }
 
