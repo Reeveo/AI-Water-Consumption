@@ -1,0 +1,47 @@
+{
+  "lastUpdated": "2026-04-01",
+  "sources": [
+    "UC Riverside / UT Arlington (2023)",
+    "Morgan Stanley Report (2024)",
+    "Synergy Research Group (2025)",
+    "IEA Data Centres Report (2024)"
+  ],
+  "annualLitersEstimate": 500000000000,
+  "annualLitersLow": 312500000000,
+  "annualLitersHigh": 764600000000,
+  "litersPerQuery": 0.5,
+  "wueAverage": 1.9,
+  "hyperscaleDataCenters": 1297,
+  "pipelineDataCenters": 770,
+  "totalAIDataCenters": 10000,
+  "queriesPerDay": 200000000,
+  "projection2028": 1068000000000,
+  "companies": [
+    { "name": "Amazon (AWS)", "color": "#ff9900", "billionLiters": 14.2, "pct": 34 },
+    { "name": "Microsoft",    "color": "#00adef", "billionLiters": 10.6, "pct": 25 },
+    { "name": "Google",       "color": "#34a853", "billionLiters": 8.9,  "pct": 21 },
+    { "name": "Meta",         "color": "#1877f2", "billionLiters": 3.7,  "pct": 9  },
+    { "name": "Others",       "color": "#8b5cf6", "billionLiters": 4.6,  "pct": 11 }
+  ],
+  "timeline": [
+    { "year": "2019", "value": 40,   "projected": false },
+    { "year": "2020", "value": 65,   "projected": false },
+    { "year": "2021", "value": 100,  "projected": false },
+    { "year": "2022", "value": 160,  "projected": false },
+    { "year": "2023", "value": 260,  "projected": false },
+    { "year": "2024", "value": 380,  "projected": false },
+    { "year": "2025", "value": 500,  "projected": false, "current": true },
+    { "year": "2026", "value": 650,  "projected": true  },
+    { "year": "2027", "value": 840,  "projected": true  },
+    { "year": "2028", "value": 1068, "projected": true  }
+  ],
+  "dataCenters": [
+    { "name": "Amazon AWS",   "emoji": "🟠", "count": "241+",  "sub": "Known locations" },
+    { "name": "Microsoft",    "emoji": "🔵", "count": "300+",  "sub": "Global regions" },
+    { "name": "Google",       "emoji": "🟢", "count": "40+",   "sub": "Cloud regions" },
+    { "name": "Meta",         "emoji": "🟣", "count": "30+",   "sub": "Data centers" },
+    { "name": "Hyperscale",   "emoji": "⚡", "count": "1,297", "sub": "Worldwide (Synergy)" },
+    { "name": "In Pipeline",  "emoji": "🏗️", "count": "770+",  "sub": "Under construction" },
+    { "name": "AI Workloads", "emoji": "🤖", "count": "~10K",  "sub": "All facilities" }
+  ]
+}
