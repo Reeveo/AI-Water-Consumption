@@ -18,12 +18,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Run update script
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_MODEL:   ${{ secrets.OPENROUTER_MODEL }}   # optional — leave blank to use free default
+          BRAVE_API_KEY:      ${{ secrets.BRAVE_API_KEY }}
         run: node scripts/update-data.js
 
       - name: Commit updated data.json (if changed)

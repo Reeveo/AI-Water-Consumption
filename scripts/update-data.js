@@ -2,12 +2,13 @@
 /**
  * update-data.js
  *
- * Fetches recent web content about AI water consumption, sends it to an
- * OpenRouter LLM, and writes updated figures back to data.json.
+ * Searches for recent web content about AI water consumption using Brave Search,
+ * sends it to an OpenRouter LLM, and writes updated figures back to data.json.
  *
  * Environment variables:
  *   OPENROUTER_API_KEY  (required)
  *   OPENROUTER_MODEL    (optional, defaults to a free model)
+ *   BRAVE_API_KEY       (required)
  */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -17,46 +18,56 @@ import { dirname, join } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_PATH  = join(__dirname, '..', 'data.json');
 
-const API_KEY = process.env.OPENROUTER_API_KEY;
-const MODEL   = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_MODEL   = process.env.OPENROUTER_MODEL || 'qwen/qwen3.6-plus-preview:free';
+const BRAVE_API_KEY      = process.env.BRAVE_API_KEY;
 
-if (!API_KEY) {
+if (!OPENROUTER_API_KEY) {
   console.error('ERROR: OPENROUTER_API_KEY is not set.');
   process.exit(1);
 }
 
-// ── Sources to fetch ─────────────────────────────────────────────────────────
-// These pages publish updated data center / AI water figures periodically.
-const SOURCES = [
-  'https://www.iea.org/energy-system/buildings/data-centres-and-data-transmission-networks',
-  'https://programs.com/resources/data-center-statistics/',
-  'https://www.aitooldiscovery.com/ai-infra/how-much-water-does-ai-use',
-];
+if (!BRAVE_API_KEY) {
+  console.error('ERROR: BRAVE_API_KEY is not set.');
+  process.exit(1);
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-async function fetchText(url) {
+async function searchBrave(query) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
   try {
-    const res = await fetch(url, {
+    const params = new URLSearchParams({
+      q: query,
+      count: '5',
+      freshness: 'py', // past year
+    });
+
+    const res = await fetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; AIWaterTracker/1.0; +https://github.com)',
-        'Accept': 'text/html,text/plain',
+        'X-Subscription-Token': BRAVE_API_KEY,
+        'Accept': 'application/json',
       },
     });
+
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const html = await res.text();
-    // Strip scripts, styles, tags — keep readable text
-    return html
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s{2,}/g, ' ')
-      .trim()
-      .slice(0, 3000); // cap per source
+    const data = await res.json();
+
+    // Format search results into readable text
+    const results = data.results || [];
+    if (!Array.isArray(results)) {
+      throw new Error(`Expected results array, got ${typeof results}`);
+    }
+
+    const formatted = results
+      .slice(0, 5)
+      .map(r => `Title: ${r.title || ''}\nURL: ${r.url || ''}\nSnippet: ${r.description || ''}`)
+      .join('\n---\n');
+
+    return formatted.slice(0, 3000); // cap per search
   } catch (err) {
-    console.warn(`  ⚠ Could not fetch ${url}: ${err.message}`);
+    console.warn(`  ⚠ Could not search "${query}": ${err.message}`);
     return null;
   } finally {
     clearTimeout(timeout);
@@ -67,13 +78,13 @@ async function callOpenRouter(prompt) {
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${API_KEY}`,
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': 'https://github.com',
       'X-Title': 'AI Water Tracker',
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: OPENROUTER_MODEL,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.1, // low temp for factual extraction
     }),
@@ -118,21 +129,25 @@ function sanityCheck(updated, current) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log(`Model: ${MODEL}`);
+  console.log(`Model: ${OPENROUTER_MODEL}`);
 
   const current = JSON.parse(readFileSync(DATA_PATH, 'utf8'));
   console.log(`Current data dated: ${current.lastUpdated}`);
 
-  // Fetch source pages in parallel
-  console.log('Fetching web sources…');
-  const texts = await Promise.all(SOURCES.map(fetchText));
-  const context = texts
+  // Search for recent content in parallel
+  console.log('Searching for recent content…');
+  const [search1, search2] = await Promise.all([
+    searchBrave('AI data center water consumption statistics 2025 2026'),
+    searchBrave('Microsoft Google Amazon Meta water usage sustainability report 2025'),
+  ]);
+
+  const context = [search1, search2]
     .filter(Boolean)
-    .map((t, i) => `--- Source ${i + 1}: ${SOURCES[i]} ---\n${t}`)
+    .map((t, i) => `--- Search ${i + 1} ---\n${t}`)
     .join('\n\n');
 
   if (!context.trim()) {
-    console.warn('No web content fetched — relying on model knowledge only.');
+    console.warn('No search results — relying on model knowledge only.');
   }
 
   const today = new Date().toISOString().split('T')[0];
