@@ -764,7 +764,7 @@
   <div class="footer-col">
     <h4>Methodology</h4>
     <p>Annual AI water footprint estimated at <strong>500 billion litres</strong> (midpoint of 312.5–764.6Bn range from published research). Counter starts from Jan 1 of current year. Rate: ~15,855 litres/second.<br><br>
-    Data refreshes automatically every 60 seconds. Figures are estimates based on publicly available research and should be treated as indicative, not exact.</p>
+    Figures are estimates based on publicly available research and should be treated as indicative, not exact. Data is loaded from <code>data.json</code> — update that file to change the figures.</p>
   </div>
   <div class="footer-col">
     <h4>Key Sources</h4>
@@ -786,40 +786,13 @@
 //  CORE DATA & CALCULATIONS
 // ════════════════════════════════════
 const DATA = {
-  annualLiters: 500_000_000_000,     // 500 billion litres (2025 midpoint estimate)
+  annualLiters: 500_000_000_000,
+  queriesPerDay: 200_000_000,
   get litersPerSecond() { return this.annualLiters / (365 * 86400); },
   get litersPerDay()    { return this.litersPerSecond * 86400; },
-
-  companies: [
-    { name: 'Amazon (AWS)', color: '#ff9900', billionLiters: 14.2, pct: 34 },
-    { name: 'Microsoft',    color: '#00adef', billionLiters: 10.6, pct: 25 },
-    { name: 'Google',       color: '#34a853', billionLiters: 8.9,  pct: 21 },
-    { name: 'Meta',         color: '#1877f2', billionLiters: 3.7,  pct: 9  },
-    { name: 'Others',       color: '#8b5cf6', billionLiters: 4.6,  pct: 11 },
-  ],
-
-  dataCenters: [
-    { name: 'Amazon AWS',  emoji: '🟠', count: '241+', sub: 'Known locations' },
-    { name: 'Microsoft',   emoji: '🔵', count: '300+', sub: 'Global regions' },
-    { name: 'Google',      emoji: '🟢', count: '40+',  sub: 'Cloud regions' },
-    { name: 'Meta',        emoji: '🟣', count: '30+',  sub: 'Data centers' },
-    { name: 'Hyperscale',  emoji: '⚡', count: '1,297', sub: 'Worldwide (Synergy)' },
-    { name: 'In Pipeline', emoji: '🏗️', count: '770+', sub: 'Under construction' },
-    { name: 'AI Workloads',emoji: '🤖', count: '~10K', sub: 'All facilities' },
-  ],
-
-  timeline: [
-    { year: '2019', value: 40,   projected: false },
-    { year: '2020', value: 65,   projected: false },
-    { year: '2021', value: 100,  projected: false },
-    { year: '2022', value: 160,  projected: false },
-    { year: '2023', value: 260,  projected: false },
-    { year: '2024', value: 380,  projected: false },
-    { year: '2025', value: 500,  projected: false, current: true },
-    { year: '2026', value: 650,  projected: true  },
-    { year: '2027', value: 840,  projected: true  },
-    { year: '2028', value: 1068, projected: true  },
-  ],
+  companies: [],
+  dataCenters: [],
+  timeline: [],
 };
 
 // ════════════════════════════════════
@@ -918,8 +891,8 @@ function updateCounters() {
   document.getElementById('eq-showers').textContent = formatCompact(todayVal / 60);
   document.getElementById('eq-people').textContent  = formatCompact(todayVal / 3);
 
-  // Queries today (assume ~200M queries/day across all AI services)
-  const queriesPerSecond = 200_000_000 / 86400;
+  // Queries today
+  const queriesPerSecond = DATA.queriesPerDay / 86400;
   const now = new Date();
   const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const secToday = (Date.now() - midnight.getTime()) / 1000;
@@ -964,13 +937,7 @@ function initCompanyBars() {
 function drawDonut() {
   const canvas = document.getElementById('donutCanvas');
   const ctx = canvas.getContext('2d');
-  const segments = [
-    { label: 'Amazon AWS',  value: 34, color: '#ff9900' },
-    { label: 'Microsoft',   value: 25, color: '#00adef' },
-    { label: 'Google',      value: 21, color: '#34a853' },
-    { label: 'Meta',        value: 9,  color: '#1877f2' },
-    { label: 'Others',      value: 11, color: '#8b5cf6' },
-  ];
+  const segments = DATA.companies.map(c => ({ label: c.name, value: c.pct, color: c.color }));
   const cx = 80, cy = 80, r = 65, ir = 42;
   let angle = -Math.PI / 2;
 
@@ -1018,7 +985,7 @@ function drawDonut() {
 // ════════════════════════════════════
 function initTimeline() {
   const area = document.getElementById('chart-area');
-  const maxVal = 1068;
+  const maxVal = Math.max(...DATA.timeline.map(d => d.value));
   DATA.timeline.forEach(d => {
     const h = Math.max(8, (d.value / maxVal) * 160);
     const cls = d.current ? 'current' : d.projected ? 'projected' : 'actual';
@@ -1076,37 +1043,39 @@ document.getElementById('year-label').textContent = new Date().getFullYear();
 // ════════════════════════════════════
 //  REFRESH BUTTON
 // ════════════════════════════════════
-let lastRefresh = Date.now();
 function triggerRefresh() {
   const btn = document.getElementById('refreshBtn');
-  const icon = document.getElementById('refreshIcon');
   btn.classList.add('spinning');
   updateCounters();
   setTimeout(() => btn.classList.remove('spinning'), 600);
-  lastRefresh = Date.now();
 }
 
 // ════════════════════════════════════
-//  INIT
+//  INIT — load data.json then render
 // ════════════════════════════════════
-initCompanyBars();
-drawDonut();
-initTimeline();
-initDCGrid();
-initBottleGrid();
-updateCounters();
+fetch('data.json')
+  .then(r => r.json())
+  .then(json => {
+    DATA.annualLiters  = json.annualLitersEstimate;
+    DATA.queriesPerDay = json.queriesPerDay;
+    DATA.companies     = json.companies;
+    DATA.dataCenters   = json.dataCenters;
+    DATA.timeline      = json.timeline;
+  })
+  .catch(() => { /* keep built-in defaults if fetch fails */ })
+  .finally(() => {
+    initCompanyBars();
+    drawDonut();
+    initTimeline();
+    initDCGrid();
+    initBottleGrid();
+    updateCounters();
+    document.getElementById('rate-display').textContent =
+      `~${formatNumber(DATA.litersPerSecond)} litres per second`;
+  });
 
-// Tick every 250ms for smooth counter
+// Tick every 250ms for smooth live counter
 setInterval(updateCounters, 250);
-
-// Auto-refresh once per day (counters already tick live via the 250ms interval above)
-setInterval(() => {
-  triggerRefresh();
-}, 86_400_000);
-
-// Rate display
-document.getElementById('rate-display').textContent =
-  `~${formatNumber(DATA.litersPerSecond)} litres per second`;
 </script>
 </body>
 </html>
